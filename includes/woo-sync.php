@@ -5,6 +5,10 @@ if ( ! defined( 'ABSPATH' ) ) exit;
  * WooCommerce Sync Functionality via Webhook.
  */
 add_action( 'tsd_sync_woocommerce', function( $data ) {
+   if ( isset( $data['dry_run'] ) && $data['dry_run'] === true ) {
+       tsd_log_message('🛑 Dry run enabled: WooCommerce sync skipped.');
+       return;
+   }
     // Retrieve WooCommerce configuration from plugin options
     $woo_api_url = get_option( 'tsd_woo_api_url', site_url( '/wp-json/wc/v3' ) );
     $woo_ck      = get_option( 'tsd_woo_consumer_key' );
