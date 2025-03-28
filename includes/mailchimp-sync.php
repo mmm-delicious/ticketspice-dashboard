@@ -1,6 +1,13 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+add_action( 'tsd_sync_mailchimp', function( $data ) {
+    tsd_log_message( '💥 Entered Mailchimp sync function' ); // Add this
+    if ( isset( $data['dry_run'] ) && $data['dry_run'] === true ) {
+        tsd_log_message( '🛑 Dry run enabled: Mailchimp sync skipped.' );
+        return;
+    }
+
 /**
  * Mailchimp Sync Functionality via Webhook.
  */

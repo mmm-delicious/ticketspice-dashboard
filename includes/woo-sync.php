@@ -1,6 +1,14 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+//temp confirmation
+add_action( 'tsd_sync_woocommerce', function( $data ) {
+    tsd_log_message( '💥 Entered WooCommerce sync function' ); // Add this
+    if ( isset( $data['dry_run'] ) && $data['dry_run'] === true ) {
+        tsd_log_message( '🛑 Dry run enabled: WooCommerce sync skipped.' );
+        return;
+    }
+
 /**
  * WooCommerce Sync Functionality via Webhook.
  */
