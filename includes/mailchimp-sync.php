@@ -5,6 +5,12 @@ if ( ! defined( 'ABSPATH' ) ) exit;
  * Mailchimp Sync Functionality via Webhook.
  */
 add_action( 'tsd_sync_mailchimp', function( $data ) {
+    // 🛑 Skip if "safe mode" is enabled
+    if ( isset( $data['dry_run'] ) && $data['dry_run'] === true ) {
+        tsd_log_message( '🛑 Dry run enabled: Mailchimp sync skipped.' );
+        return;
+    }
+
     // Log the received payload
     tsd_log_message( "Received TicketSpice Webhook: " . wp_json_encode( $data ) );
 
@@ -156,10 +162,7 @@ add_action( 'tsd_sync_mailchimp', function( $data ) {
         $order_data["tracking_code"] = $coupon_code;
     }
 
-    // Product creation helpers (left as-is)
-    // ...
-
-    // Line items and product creation logic (left as-is, but safe)
+    // Product & line item creation logic (unchanged)
 
     // Final Order Push
     $order_url = "https://{$server_prefix}.api.mailchimp.com/3.0/ecommerce/stores/{$store_id}/orders/{$order_id}";
@@ -185,4 +188,3 @@ function tsd_mailchimp_api_request( $url, $method, $api_key, $body ) {
 
     return "HTTP {$http_code}: " . sanitize_text_field( $response );
 }
-
