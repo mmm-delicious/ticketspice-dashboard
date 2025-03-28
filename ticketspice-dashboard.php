@@ -62,7 +62,7 @@ function tsd_handle_webhook() {
         function tsd_log( $msg ) {
             if ( get_option( 'tsd_logging_enabled' ) === 'yes' ) {
                 $upload_dir = wp_upload_dir();
-                $log_file = trailingslashit( $upload_dir['basedir'] ) . 'webhook_log.txt';
+                $log_file = trailingslashit( $upload_dir['basedir'] ) . 'ticketspice_log.txt';
                 file_put_contents( $log_file, date( "Y-m-d H:i:s" ) . " - " . $msg . "\n", FILE_APPEND );
                 error_log( $msg );
             }

@@ -125,35 +125,81 @@ function tsd_render_reports_page() {
     ?>
     <div class="wrap">
         <h1>TicketSpice Reports</h1>
-        <canvas id="tsd_sales_chart" width="100%" height="40"></canvas>
+
+        <div style="margin-bottom: 1em;">
+            <button class="tsd-range-btn" data-range="week">Last 7 Days</button>
+            <button class="tsd-range-btn" data-range="month">Last 30 Days</button>
+        </div>
+
+        <canvas id="tsd_sales_chart" height="60"></canvas>
+        <canvas id="tsd_top_products_chart" height="40" style="margin-top: 50px;"></canvas>
+
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            if (!window.tsdSalesData) return;
-            new Chart(document.getElementById('tsd_sales_chart'), {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(window.tsdSalesData),
-                    datasets: [{
-                        label: 'TicketSpice Sales (Last 30 Days)',
-                        data: Object.values(window.tsdSalesData),
-                        backgroundColor: '#36a2eb'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Total Sales ($)'
+        function loadReportData(range = 'week') {
+            fetch(ajaxurl + '?action=tsd_chart_data&range=' + range)
+                .then(res => res.json())
+                .then(res => {
+                    if (!res.success) return;
+
+                    const sales = res.data.sales;
+                    const top = res.data.top_products;
+
+                    const salesCtx = document.getElementById('tsd_sales_chart').getContext('2d');
+                    const topCtx = document.getElementById('tsd_top_products_chart').getContext('2d');
+
+                    if (window.salesChart) window.salesChart.destroy();
+                    if (window.topProductsChart) window.topProductsChart.destroy();
+
+                    window.salesChart = new Chart(salesCtx, {
+                        type: 'line',
+                        data: {
+                            labels: Object.keys(sales),
+                            datasets: [{
+                                label: 'Sales ($)',
+                                data: Object.values(sales),
+                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                borderColor: '#36a2eb',
+                                borderWidth: 2,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: { beginAtZero: true }
                             }
                         }
-                    }
-                }
+                    });
+
+                    window.topProductsChart = new Chart(topCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: Object.keys(top),
+                            datasets: [{
+                                label: 'Top Products (Qty)',
+                                data: Object.values(top),
+                                backgroundColor: '#4CAF50'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: { beginAtZero: true }
+                            }
+                        }
+                    });
+                });
+        }
+
+        document.querySelectorAll('.tsd-range-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const range = btn.getAttribute('data-range');
+                loadReportData(range);
             });
         });
+
+        document.addEventListener('DOMContentLoaded', () => loadReportData());
         </script>
     </div>
     <?php
