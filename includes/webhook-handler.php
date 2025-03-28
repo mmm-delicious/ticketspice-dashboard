@@ -18,10 +18,19 @@ add_filter( 'query_vars', function( $vars ) {
  */
 add_action( 'template_redirect', function() {
     if ( get_query_var( 'ticketspice_webhook' ) ) {
-        do_action( 'ticketspice_mailchimp_webhook' );
+        $input = file_get_contents( 'php://input' );
+        $data  = json_decode( $input, true );
+
+        tsd_log_message( 'Webhook received: ' . wp_json_encode( $data ) );
+
+        do_action( 'ticketspice_mailchimp_webhook', $data );
+
+        status_header(200);
+        echo 'Webhook received successfully.';
         exit;
     }
 });
+
 
 /**
  * Webhook handler function — triggers sync if enabled
