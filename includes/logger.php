@@ -7,10 +7,22 @@ if ( ! function_exists( 'tsd_log_message' ) ) {
         if ( $enabled !== 'yes' ) return;
 
         $log_file = tsd_get_log_file_path();
+        $dir = dirname( $log_file );
 
-        // Basic sanitization for file logging
-        $entry = date("Y-m-d H:i:s") . " - " . sanitize_text_field( $message ) . "\n";
-        file_put_contents( $log_file, $entry, FILE_APPEND );
+        // ✅ Ensure the uploads dir exists
+        if ( ! file_exists( $dir ) ) {
+            wp_mkdir_p( $dir );
+        }
+
+        // ✅ Make sure file exists and is writable
+        if ( ! file_exists( $log_file ) ) {
+            file_put_contents( $log_file, '' ); // create empty file
+        }
+
+        if ( is_writable( $log_file ) ) {
+            $entry = date( "Y-m-d H:i:s" ) . " - " . sanitize_text_field( $message ) . "\n";
+            file_put_contents( $log_file, $entry, FILE_APPEND );
+        }
 
         if ( $is_error ) {
             error_log( "[TicketSpice] " . sanitize_text_field( $message ) );
