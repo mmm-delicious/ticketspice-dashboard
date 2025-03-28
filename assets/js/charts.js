@@ -10,6 +10,10 @@ document.addEventListener("DOMContentLoaded", function () {
             data: window.tsdSalesData,
             options: {
                 responsive: true,
+                animation: {
+                    duration: 800,
+                    easing: 'easeOutQuart'
+                },
                 plugins: {
                     title: {
                         display: true,
@@ -17,6 +21,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     },
                     legend: {
                         display: false,
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const val = context.raw || 0;
+                                return `$${val.toFixed(2)} in sales`;
+                            }
+                        }
                     }
                 },
                 scales: {
@@ -44,6 +56,10 @@ document.addEventListener("DOMContentLoaded", function () {
             data: window.tsdTopProductsData,
             options: {
                 responsive: true,
+                animation: {
+                    duration: 800,
+                    easing: 'easeOutQuart'
+                },
                 plugins: {
                     title: {
                         display: true,
@@ -51,6 +67,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     },
                     legend: {
                         display: false,
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const val = context.raw || 0;
+                                return `${val} units sold`;
+                            }
+                        }
                     }
                 },
                 scales: {

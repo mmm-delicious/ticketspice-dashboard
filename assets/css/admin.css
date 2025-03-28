@@ -90,3 +90,36 @@ button.button-primary.tsd-test-button {
         width: 100%;
     }
 }
+
+.tsd-leaderboard {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+.tsd-leaderboard th,
+.tsd-leaderboard td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.tsd-leaderboard th {
+    background: #f9f9f9;
+    color: #b30000;
+    font-weight: bold;
+}
+
+.tsd-leaderboard tr:nth-child(even) {
+    background: #fcfcfc;
+}
+
+.tsd-leaderboard td:first-child {
+    font-weight: bold;
+    color: #b30000;
+}
