@@ -1,14 +1,16 @@
 <?php
+require_once plugin_dir_path(__FILE__) . 'logger.php';
+
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
  * WooCommerce Sync Functionality via Webhook.
  */
 add_action( 'tsd_sync_woocommerce', function( $data ) {
-   if ( isset( $data['dry_run'] ) && $data['dry_run'] === true ) {
-       tsd_log_message('🛑 Dry run enabled: WooCommerce sync skipped.');
-       return;
-   }
+    if ( isset( $data['dry_run'] ) && $data['dry_run'] === true ) {
+        tsd_log_message('🛑 Dry run enabled: WooCommerce sync skipped.');
+        return;
+    }
     // Retrieve WooCommerce configuration from plugin options
     $woo_api_url = get_option( 'tsd_woo_api_url', site_url( '/wp-json/wc/v3' ) );
     $woo_ck      = get_option( 'tsd_woo_consumer_key' );
@@ -55,17 +57,20 @@ add_action( 'tsd_sync_woocommerce', function( $data ) {
             $sku = (string) ( $ticket['ticketKey'] ?? $ticket['id'] );
             $ticket_label = sanitize_text_field( $ticket['ticketLabel'] ?? 'Ticket' );
 
-            // Check if product exists in WooCommerce; if not, create it
-            $product_id = wc_sync_get_product_id( $sku, $woo_api_url, $auth_query );
-            if ( ! $product_id ) {
-                $product_id = wc_sync_create_product( $sku, $ticket_label, $woo_api_url, $auth_query );
-            }
+           // Check if product exists in WooCommerce; if not, create it
+           $product_id = wc_sync_get_product_id( $sku, $woo_api_url, $auth_query );
+           if ( ! $product_id ) {
+               // Format the ticket price as a string with two decimals.
+               $ticket_price = number_format( floatval( $ticket['amount'] ?? 0 ), 2, '.', '' );
+               $product_id = wc_sync_create_product( $sku, $ticket_label, $woo_api_url, $auth_query, $ticket_price );
+           }
 
             if ( $product_id ) {
                 $line_items[] = [
                     "product_id" => $product_id,
                     "quantity"   => 1,
-                    "price"      => floatval( $ticket['amount'] ?? 0 )
+                    "price"      => number_format( floatval( $ticket['amount'] ?? 0 ), 2, '.', '' )
+
                 ];
             }
         }
@@ -99,85 +104,135 @@ add_action( 'tsd_sync_woocommerce', function( $data ) {
         ]
     ];
 
-    // Send order creation request to WooCommerce REST API
+    // Send order creation request to WooCommerce REST API using WP HTTP API
     $order_endpoint = $woo_api_url . "/orders" . $auth_query;
-    $ch = curl_init( $order_endpoint );
-    curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
-    curl_setopt( $ch, CURLOPT_POST, true );
-    curl_setopt( $ch, CURLOPT_HTTPHEADER, [
-        "Content-Type: application/json"
-    ]);
-    curl_setopt( $ch, CURLOPT_POSTFIELDS, wp_json_encode( $order_data ) );
-    $response  = curl_exec( $ch );
-    $http_code = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
-    curl_close( $ch );
-
-    tsd_log_message( "WooCommerce Order Response: HTTP {$http_code}: " . sanitize_text_field( $response ) );
+    $args = [
+        'method'  => 'POST',
+        'headers' => [
+            'Content-Type' => 'application/json'
+        ],
+        'body'    => wp_json_encode( $order_data ),
+        'timeout' => 15,
+    ];
+    $response = wp_remote_post( $order_endpoint, $args );
+    if ( is_wp_error( $response ) ) {
+        tsd_log_message( "HTTP API Error in WooCommerce order creation: " . $response->get_error_message(), true );
+    } else {
+        $http_code = wp_remote_retrieve_response_code( $response );
+        $body_response = wp_remote_retrieve_body( $response );
+        tsd_log_message( "WooCommerce Order Response: HTTP {$http_code}: " . sanitize_text_field( $body_response ) );
+    }
 });
 
 /**
  * Helper function: Check if a product exists in WooCommerce by SKU.
+ * ✅ Updated to use wp_remote_get.
  */
 if ( ! function_exists( 'wc_sync_get_product_id' ) ) {
     function wc_sync_get_product_id( $sku, $woo_api_url, $auth_query ) {
         $url = $woo_api_url . "/products" . $auth_query . "&sku=" . urlencode( $sku );
-        $ch = curl_init( $url );
-        curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
-        $response  = curl_exec( $ch );
-        $http_code = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
-        curl_close( $ch );
-
+        $response = wp_remote_get( $url, ['timeout' => 15] );
+        if ( is_wp_error( $response ) ) {
+            tsd_log_message("HTTP API Error in wc_sync_get_product_id: " . $response->get_error_message(), true);
+            return false;
+        }
+        $http_code = wp_remote_retrieve_response_code( $response );
+        $body = wp_remote_retrieve_body( $response );
         if ( $http_code === 200 ) {
-            $products = json_decode( $response, true );
+            $products = json_decode( $body, true );
             if ( is_array( $products ) && count( $products ) > 0 ) {
                 return $products[0]['id'] ?? false;
             }
         }
-
         return false;
     }
 }
 
 /**
  * Helper function: Create a new product in WooCommerce.
+ * ✅ Updated to use wp_remote_post.
  */
 if ( ! function_exists( 'wc_sync_create_product' ) ) {
-    function wc_sync_create_product( $sku, $name, $woo_api_url, $auth_query ) {
+    function wc_sync_create_product( $sku, $name, $woo_api_url, $auth_query, $price = "0" ) {
         $url = $woo_api_url . "/products" . $auth_query;
         $data = [
             "name"          => sanitize_text_field( $name ),
             "type"          => "simple",
-            "regular_price" => "0",
+            // Use the provided price instead of "0".
+            "regular_price" => $price,
             "sku"           => sanitize_text_field( $sku ),
             "status"        => "publish"
         ];
-        $ch = curl_init( $url );
-        curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
-        curl_setopt( $ch, CURLOPT_POST, true );
-        curl_setopt( $ch, CURLOPT_HTTPHEADER, [
-            "Content-Type: application/json"
-        ]);
-        curl_setopt( $ch, CURLOPT_POSTFIELDS, wp_json_encode( $data ) );
-        $response  = curl_exec( $ch );
-        $http_code = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
-        curl_close( $ch );
-
-        tsd_log_message( "Created WooCommerce product SKU {$sku} - HTTP {$http_code}: " . sanitize_text_field( $response ) );
-
+        $args = [
+            'method'  => 'POST',
+            'headers' => [ 'Content-Type' => 'application/json' ],
+            'body'    => wp_json_encode( $data ),
+            'timeout' => 15,
+        ];
+        $response = wp_remote_post( $url, $args );
+        if ( is_wp_error( $response ) ) {
+            tsd_log_message("HTTP API Error in wc_sync_create_product: " . $response->get_error_message(), true);
+            return false;
+        }
+        $http_code = wp_remote_retrieve_response_code( $response );
+        $body_response = wp_remote_retrieve_body( $response );
+        tsd_log_message( "Created WooCommerce product SKU {$sku} - HTTP {$http_code}: " . sanitize_text_field( $body_response ) );
         if ( $http_code === 201 || $http_code === 200 ) {
-            $product = json_decode( $response, true );
+            $product = json_decode( $body_response, true );
             return $product['id'] ?? false;
         }
-
         return false;
     }
 }
 
 /**
- * Action Scheduler Integration
+ * Legacy WooCommerce request function.
+ * ✅ Updated to use WP HTTP API and tsd_log_message().
  */
-if ( class_exists( 'ActionScheduler' ) ) {
-    add_action( 'tsd_process_webhook', 'tsd_process_webhook_job' );
+function woo_request( $method, $endpoint, $body = null ) {
+    $woocommerce_api_url = 'https://www.centeredpresents.com/wp-json/wc/v3';
+    $key    = defined('WOOCOMMERCE_CONSUMER_KEY') ? urlencode(WOOCOMMERCE_CONSUMER_KEY) : '';
+    $secret = defined('WOOCOMMERCE_CONSUMER_SECRET') ? urlencode(WOOCOMMERCE_CONSUMER_SECRET) : '';
+
+    $url = strpos($endpoint, '?') !== false
+        ? "$woocommerce_api_url/$endpoint&consumer_key=$key&consumer_secret=$secret"
+        : "$woocommerce_api_url/$endpoint?consumer_key=$key&consumer_secret=$secret";
+
+    tsd_log_message( "WooCommerce Request: $method $url" );
+
+    $args = [
+        'method'  => strtoupper($method),
+        'headers' => [ 'Content-Type' => 'application/json' ],
+        'timeout' => 15,
+    ];
+    if ( $body ) {
+        $args['body'] = wp_json_encode( $body );
+    }
+    $response = wp_remote_request($url, $args);
+    if ( is_wp_error($response) ) {
+        tsd_log_message( "HTTP API Error in woo_request: " . $response->get_error_message(), true );
+    } else {
+        $http_code = wp_remote_retrieve_response_code($response);
+        $body_response = wp_remote_retrieve_body($response);
+        if ( $http_code >= 400 ) {
+            tsd_log_message( "WooCommerce $method $endpoint failed: HTTP $http_code - $body_response", true );
+        } else {
+            tsd_log_message( "WooCommerce $method $endpoint success: HTTP $http_code - $body_response" );
+        }
+    }
+    return json_decode( wp_remote_retrieve_body($response), true );
+}
+
+/* -----------------------------------------------------------------------------
+   New Code: Action Scheduler Callback Registration
+   -----------------------------------------------------------------------------
+   The following code ensures that the scheduled action 'tsd_process_webhook' has
+   a registered callback. This prevents the error:
+   "Scheduled action for tsd_process_webhook will not be executed as no callbacks are registered."
+----------------------------------------------------------------------------- */
+
+// Define the callback function if not already defined.
+if ( ! function_exists( 'tsd_process_webhook_job' ) ) {
     function tsd_process_webhook_job( $data ) {
         if ( get_option( 'tsd_enable_mailchimp', 'yes' ) === 'yes' ) {
             do_action( 'tsd_sync_mailchimp', $data );
@@ -187,3 +242,11 @@ if ( class_exists( 'ActionScheduler' ) ) {
         }
     }
 }
+
+// Ensure the callback is registered on every request via the 'init' hook.
+add_action( 'init', function() {
+    if ( class_exists( 'ActionScheduler' ) ) {
+        add_action( 'tsd_process_webhook', 'tsd_process_webhook_job', 10, 1 );
+        // tsd_log_message( "Registered tsd_process_webhook callback via Action Scheduler." );
+    }
+});

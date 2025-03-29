@@ -80,9 +80,9 @@ function tsd_get_sample_webhook() {
         'eventType' => 'registration',
         'data' => [
             'billing' => [
-                'email' => 'demo@example.com',
+                'email' => 'malekotest@malekosroom.com',
                 'phone' => '+15555550123',
-                'name' => [ 'first' => 'Demo', 'last' => 'User' ],
+                'name' => [ 'first' => 'Testing', 'Maleko' => 'User' ],
                 'address' => [
                     'street1'    => '123 Sample Street',
                     'city'       => 'Demo City',
